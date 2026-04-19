@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Large data files
+*.pkl
+*.bin
+*.npy
+*.pth
+*.pt
+
+# Output folders
+results/
+dataset/

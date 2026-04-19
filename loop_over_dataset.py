@@ -45,6 +45,7 @@ from student.association import Association
 from student.measurements import Sensor, Measurement
 from misc.evaluation import plot_tracks, plot_rmse, make_movie
 import misc.params as params 
+
  
 ##################
 ## Set parameters and perform initializations
@@ -62,8 +63,9 @@ datafile = WaymoDataFileReader(data_fullpath)
 datafile_iter = iter(datafile)  # initialize dataset iterator
 
 ## Initialize object detection
-configs_det = det.load_configs(model_name='fpn_resnet') # options are 'darknet', 'fpn_resnet'
+configs_det = det.load_configs(model_name='fpn_resnet') # options are 'darknet', 'fpn_resnet' Calls the detection module to load the specific neural network configuration (hyperparameters, layer sizes)
 model_det = det.create_model(configs_det)
+
 
 configs_det.use_labels_as_objects = False # True = use groundtruth labels as objects, False = use model-based detection
 
@@ -79,9 +81,11 @@ camera = None # init camera sensor object
 np.random.seed(10) # make random values predictable
 
 ## Selective execution and visualization
-exec_detection = ['bev_from_pcl', 'detect_objects', 'validate_object_labels', 'measure_detection_performance'] # options are 'bev_from_pcl', 'detect_objects', 'validate_object_labels', 'measure_detection_performance'; options not in the list will be loaded from file
-exec_tracking = [] # options are 'perform_tracking'
-exec_visualization = [] # options are 'show_range_image', 'show_bev', 'show_pcl', 'show_labels_in_image', 'show_objects_and_labels_in_bev', 'show_objects_in_bev_labels_in_camera', 'show_tracks', 'show_detection_performance', 'make_tracking_movie'
+# exec_detection = ['bev_from_pcl', 'detect_objects', 'validate_object_labels', 'measure_detection_performance'] # options are 'bev_from_pcl', 'detect_objects', 'validate_object_labels', 'measure_detection_performance'; options not in the list will be loaded from file
+exec_detection = ['bev_from_pcl', 'detect_objects']
+exec_tracking = ['perform_tracking'] # options are 'perform_tracking'
+# exec_visualization = [] # options are 'show_range_image', 'show_bev', 'show_pcl', 'show_labels_in_image', 'show_objects_and_labels_in_bev', 'show_objects_in_bev_labels_in_camera', 'show_tracks', 'show_detection_performance', 'make_tracking_movie'
+exec_visualization = ['show_objects_and_labels_in_bev', 'show_tracks']
 exec_list = make_exec_list(exec_detection, exec_tracking, exec_visualization)
 vis_pause_time = 0 # set pause time between frames in ms (0 = stop between frames until key is pressed)
 
@@ -151,7 +155,8 @@ while True:
                 if 'perform_tracking' in exec_list:
                     detections = load_object_from_file(results_fullpath, data_filename, 'detections', cnt_frame)
                 else:
-                    detections = load_object_from_file(results_fullpath, data_filename, 'detections_' + configs_det.arch + '_' + str(configs_det.conf_thresh), cnt_frame)
+                    # detections = load_object_from_file(results_fullpath, data_filename, 'detections_' + configs_det.arch + '_' + str(configs_det.conf_thresh), cnt_frame)
+                    detections = load_object_from_file(results_fullpath, data_filename, 'detections', cnt_frame)
 
         ## Validate object labels
         if 'validate_object_labels' in exec_list:
@@ -171,7 +176,8 @@ while True:
             if 'perform_tracking' in exec_list:
                 det_performance = load_object_from_file(results_fullpath, data_filename, 'det_performance', cnt_frame)
             else:
-                det_performance = load_object_from_file(results_fullpath, data_filename, 'det_performance_' + configs_det.arch + '_' + str(configs_det.conf_thresh), cnt_frame)   
+                # det_performance = load_object_from_file(results_fullpath, data_filename, 'det_performance_' + configs_det.arch + '_' + str(configs_det.conf_thresh), cnt_frame)   
+                det_performance = load_object_from_file(results_fullpath, data_filename, 'det_performance', cnt_frame)
 
         det_performance_all.append(det_performance) # store all evaluation results in a list for performance assessment at the end
         
@@ -232,6 +238,11 @@ while True:
                     z[1] = z[1] + np.random.normal(0, params.sigma_cam_j)
                     meas_list_cam = camera.generate_measurement(cnt_frame, z, meas_list_cam)
             
+            # ==========================================
+            # DEBUG PRINT 3: Association Check
+            # ==========================================
+            print(f"Frame {cnt_frame} | Active Tracks: {len(manager.track_list)} | Lidar Dets: {len(meas_list_lidar)} | Cam Dets: {len(meas_list_cam)}")
+            # ==========================================
             # Kalman prediction
             for track in manager.track_list:
                 print('predict track', track.id)

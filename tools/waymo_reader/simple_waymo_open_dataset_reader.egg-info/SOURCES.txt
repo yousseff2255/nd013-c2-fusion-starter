@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 simple_waymo_open_dataset_reader/__init__.py

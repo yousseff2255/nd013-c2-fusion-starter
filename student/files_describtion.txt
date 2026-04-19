@@ -1,0 +1,16 @@
+Step 1 & 2: Object Detection (The BEV & Neural Network)
+objdet_pcl.py: This is Step 1. It contains the code to take the 3D Point Cloud (PCL) and squash it down into the 2D Birds-Eye View (BEV).
+
+objdet_detect.py: This is Step 2. This file holds the code that feeds your BEV image into the neural network (like ResNet) to get the bounding boxes.
+
+objdet_eval.py: A helper file. It evaluates how "good" your neural network is doing by comparing its detections to the ground truth labels.
+
+Step 3: Tracking (The Kalman Filter)
+filter.py: The math engine. This contains the Extended Kalman Filter (EKF) matrices for the "Predict" and "Update" steps.
+
+measurements.py: A helper file for the filter. Camera data and LiDAR data are mathematically different. This file translates both sensor readings into a common language the filter can understand.
+
+Step 4: Data Association
+association.py: The matching logic. It contains the code that calculates the distance between a Prediction and a Measurement to link them together.
+
+trackmanagement.py: The lifecycle manager. If the association file finds a detection that doesn't match any known car, this file creates a new track. If a car drives off the screen and disappears, this file deletes the track so the computer's memory doesn't fill up.

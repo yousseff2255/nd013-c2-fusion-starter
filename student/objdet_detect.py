@@ -48,7 +48,7 @@ def load_configs_model(model_name='darknet', configs=None):
         configs.arch = 'darknet'
         configs.batch_size = 4
         configs.cfgfile = os.path.join(configs.model_path, 'config', 'complex_yolov4.cfg')
-        configs.conf_thresh = 0.5
+        configs.conf_thresh = 0.1
         configs.distributed = False
         configs.img_size = 608
         configs.nms_thresh = 0.4
@@ -61,6 +61,19 @@ def load_configs_model(model_name='darknet', configs=None):
         ####### ID_S3_EX1-3 START #######     
         #######
         print("student task ID_S3_EX1-3")
+        configs.model_path = os.path.join(parent_path, 'tools', 'objdet_models', 'resnet')
+        configs.pretrained_filename = os.path.join(configs.model_path, 'pretrained', 'fpn_resnet_18_epoch_300.pth')
+        configs.arch = 'fpn_resnet'
+        configs.batch_size = 4
+        # configs.cfgfile = os.path.join(configs.model_path, 'config', 'fpn_resnet.cfg')
+        configs.conf_thresh = 0.5
+        configs.distributed = False
+        configs.img_size = 608
+        configs.nms_thresh = 0.4
+        configs.num_samples = None
+        configs.num_workers = 4
+        configs.pin_memory = True
+        configs.use_giou_loss = False
 
         #######
         ####### ID_S3_EX1-3 END #######     
@@ -90,7 +103,9 @@ def load_configs(model_name='fpn_resnet', configs=None):
     configs.lim_r = [0, 1.0] # reflected lidar intensity
     configs.bev_width = 608  # pixel resolution of bev image
     configs.bev_height = 608 
-
+    configs.down_ratio = 4   # ratio between input bev image and output feature map of model (e.g. 4 for darknet, 4 for fpn_resnet)
+    configs.num_classes = 3 # number of object classes (e.g. pedestrian, car, cyclist)
+    
     # add model-dependent parameters
     configs = load_configs_model(model_name, configs)
 
@@ -118,6 +133,17 @@ def create_model(configs):
         ####### ID_S3_EX1-4 START #######     
         #######
         print("student task ID_S3_EX1-4")
+        print('using ResNet architecture with feature pyramid')
+       # Change your heads dictionary to match the weights file
+        heads = {
+            'hm_cen': 3,          # Heatmap for center of 3 classes
+            'cen_offset': 2,      # X, Y offsets
+            'direction': 2,       # Sin/Cos of the orientation
+            'z_coor': 1,          # Z-coordinate height
+            'dim': 3              # Width, Length, Height dimensions
+        }
+
+        model = fpn_resnet.get_pose_net(num_layers=18, heads=heads, head_conv=64, imagenet_pretrained=True)
 
         #######
         ####### ID_S3_EX1-4 END #######     
@@ -126,12 +152,12 @@ def create_model(configs):
         assert False, 'Undefined model backbone'
 
     # load model weights
-    model.load_state_dict(torch.load(configs.pretrained_filename, map_location='cpu'))
+    model.load_state_dict(torch.load(configs.pretrained_filename, map_location='cpu', weights_only=True))
     print('Loaded weights from {}\n'.format(configs.pretrained_filename))
 
     # set model to evaluation state
     configs.device = torch.device('cpu' if configs.no_cuda else 'cuda:{}'.format(configs.gpu_idx))
-    model = model.to(device=configs.device)  # load model to either cpu or gpu
+    model = model.to(device=configs.device) # load model to either cpu or gpu
     model.eval()          
 
     return model
@@ -145,6 +171,8 @@ def detect_objects(input_bev_maps, model, configs):
 
         # perform inference
         outputs = model(input_bev_maps)
+        max_score = torch.max(torch.sigmoid(outputs['hm_cen'])).item()
+        print(f"DEBUG: Max Heatmap Score: {max_score:.4f}")
 
         # decode model output into target object format
         if 'darknet' in configs.arch:
@@ -165,30 +193,60 @@ def detect_objects(input_bev_maps, model, configs):
             # decode output and perform post-processing
             
             ####### ID_S3_EX1-5 START #######     
-            #######
             print("student task ID_S3_EX1-5")
-
-            #######
+            decoded_outputs = decode(
+                outputs['hm_cen'], 
+                outputs['cen_offset'], 
+                outputs['direction'], 
+                outputs['z_coor'], 
+                outputs['dim'], 
+                K=100
+            )
+            detections = post_processing(decoded_outputs.cpu().numpy(), configs)
             ####### ID_S3_EX1-5 END #######     
 
-            
-
+   ####### ID_S3_EX2 START #######     
     ####### ID_S3_EX2 START #######     
-    #######
-    # Extract 3d bounding boxes from model response
     print("student task ID_S3_EX2")
-    objects = [] 
-
-    ## step 1 : check whether there are any detections
-
-        ## step 2 : loop over all detections
-        
-            ## step 3 : perform the conversion using the limits for x, y and z set in the configs structure
-        
-            ## step 4 : append the current object to the 'objects' array
-        
-    #######
-    ####### ID_S3_EX2 START #######   
     
-    return objects    
+    # DEBUG PRINT 1: What is the raw format of detections?
+    print(f"DEBUG: Type of detections: {type(detections)}")
+    if len(detections) > 0:
+        print(f"DEBUG: First element type: {type(detections[0])}")
 
+    objects = [] 
+    bev_discretization = (configs.lim_x[1] - configs.lim_x[0]) / configs.bev_height
+
+    # Robust unwrapping logic
+    if isinstance(detections, list) and len(detections) > 0:
+        # If it's a list containing a dictionary (Standard ResNet output)
+        if isinstance(detections[0], dict):
+            target_data = detections[0]
+            items_to_loop = target_data.items()
+        # If it's a list of arrays (One array per class)
+        else:
+            items_to_loop = enumerate(detections)
+            
+        for class_id, class_array in items_to_loop:
+            if class_array is None or len(class_array) == 0:
+                continue
+
+            class_array = np.atleast_2d(class_array)
+            for det in class_array:
+                # Metric transformation
+                y_metric = (det[1] * bev_discretization) + configs.lim_y[0]
+                x_metric = (det[2] * bev_discretization) + configs.lim_x[0]
+                w_metric = det[5] * bev_discretization
+                l_metric = det[6] * bev_discretization
+                
+                # Use current class_id (add 1 if it starts at 0)
+                final_class = int(class_id) if isinstance(class_id, (int, float)) else 1
+                objects.append([final_class, x_metric, y_metric, det[3], det[4], w_metric, l_metric, det[7]])
+
+    # DEBUG PRINT 2: Did we actually create any objects?
+    print(f"DEBUG: Successfully created {len(objects)} metric objects")
+
+    print(f"DEBUG: decoded_outputs shape: {decoded_outputs.shape}")
+    print(f"DEBUG: detections raw: {detections}")
+
+    return objects
