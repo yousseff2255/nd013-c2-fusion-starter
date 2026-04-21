@@ -35,20 +35,35 @@ class Track:
         # - initialize track state and track score with appropriate values
         ############
 
-        self.x = np.matrix([[49.53980697],
-                        [ 3.41006279],
-                        [ 0.91790581],
-                        [ 0.        ],
-                        [ 0.        ],
-                        [ 0.        ]])
-        self.P = np.matrix([[9.0e-02, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 9.0e-02, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 6.4e-03, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 2.5e+03, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 2.5e+03, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 2.5e+01]])
-        self.state = 'confirmed'
-        self.score = 0
+
+        
+        
+        
+        veh_coord = M_rot * meas.z # transform measurement from sensor to vehicle coordinates
+        
+        pos_sens = np.ones((4, 1))
+        pos_sens[0:3] = meas.z[0:3]
+        pos_veh = meas.sensor.sens_to_veh * pos_sens
+        self.x = np.matrix([[pos_veh[0,0]],
+                            [pos_veh[1,0]],
+                            [pos_veh[2,0]],
+                            [0.],
+                            [0.],
+                            [0.]])
+        
+        P_pos = M_rot * meas.R * M_rot.T
+        self.P = np.matrix([
+            [P_pos[0,0], P_pos[0,1], P_pos[0,2], 0, 0, 0],
+            [P_pos[1,0], P_pos[1,1], P_pos[1,2], 0, 0, 0],
+            [P_pos[2,0], P_pos[2,1], P_pos[2,2], 0, 0, 0],
+            [0, 0, 0, params.sigma_p44**2, 0,               0              ],
+            [0, 0, 0, 0,               params.sigma_p55**2, 0              ],
+            [0, 0, 0, 0,               0,               params.sigma_p66**2],
+        ])
+        
+        
+        self.state = 'initialized'
+        self.score = 1. / params.window
         
         ############
         # END student code
@@ -106,11 +121,27 @@ class Trackmanagement:
             # check visibility    
             if meas_list: # if not empty
                 if meas_list[0].sensor.in_fov(track.x):
-                    # your code goes here
-                    pass 
+                    track.score -= 1 / params.window
+                else:
+                    track.score = params.delete_threshold - 0.01# if track is not in fov of sensor, set score to zero to delete track immediately
+            else:
+                track.score -= 1 / params.window # if no measurements at all, decrease score for all tracks
 
         # delete old tracks   
-
+            for track in self.track_list[:]:
+                if track.state == 'initialized':
+                    if track.score < 0:
+                        self.delete_track(track)
+                elif track.state == 'tentative':
+                    # Tentative tracks should only be deleted if they drop below 0
+                    if track.score < 0:
+                        self.delete_track(track)
+                elif track.state == 'confirmed':
+                    # Only confirmed tracks use the delete_threshold and max_P checks
+                    if track.score < params.delete_threshold or \
+                        track.P[0,0] > params.max_P or \
+                        track.P[1,1] > params.max_P:
+                        self.delete_track(track)
         ############
         # END student code
         ############ 
@@ -139,8 +170,15 @@ class Trackmanagement:
         # - increase track score
         # - set track state to 'tentative' or 'confirmed'
         ############
+        track.score = min(1.0, track.score + 1. / params.window)
+        if track.score >= params.confirmed_threshold:
+            track.state = 'confirmed'
+        elif track.score > 0:
+            track.state = 'tentative'
+        else:
+            track.state = 'initialized'
 
-        pass
+        
         
         ############
         # END student code

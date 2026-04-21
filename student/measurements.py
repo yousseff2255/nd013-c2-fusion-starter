@@ -156,17 +156,17 @@ class Measurement:
             sigma_lidar_y = params.sigma_lidar_y
             sigma_lidar_z = params.sigma_lidar_z
             self.z = np.matrix(np.zeros((sensor.dim_meas, 1))) # measurement vector
-            self.z[0] = z[0]
-            self.z[1] = z[1]
-            self.z[2] = z[2]
+            self.z[0] = float(z[0])
+            self.z[1] = float(z[1])
+            self.z[2] = float(z[2])
             self.R = np.matrix([[sigma_lidar_x**2, 0, 0], # measurement noise covariance matrix
                                 [0, sigma_lidar_y**2, 0], 
                                 [0, 0, sigma_lidar_z**2]])
             
-            self.width = z[4]
-            self.length = z[5]
-            self.height = z[3]
-            self.yaw = z[6]
+            self.width = float(z[4])
+            self.length = float(z[5])
+            self.height = float(z[3])
+            self.yaw = float(z[6])
         elif sensor.name == 'camera':
             ############
             # TODO Step 4: initialize camera measurement including z and R 
@@ -174,8 +174,8 @@ class Measurement:
             sigma_cam_i = params.sigma_cam_i # load params
             sigma_cam_j = params.sigma_cam_j
             self.z = np.matrix(np.zeros((sensor.dim_meas, 1))) # measurement vector
-            self.z[0] = z[0]
-            self.z[1] = z[1]
+            self.z[0] = float(z[0])
+            self.z[1] = float(z[1])
             self.R = np.matrix([[sigma_cam_i**2, 0], # measurement noise covariance matrix
                                 [0, sigma_cam_j**2]])
             

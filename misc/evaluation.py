@@ -68,15 +68,15 @@ def plot_tracks(fig, ax, ax2, track_list, meas_list, lidar_labels, lidar_labels_
                                     transform=Affine2D().rotate_around(*(0,0), -yaw)+Affine2D().translate(-y,x)+ax.transData)
             ax.add_patch(rec)
             
-            # write track id for debugging
-            ax.text(float(-track.x[1]), float(track.x[0]+1), str(track.id))
+           # write track id for debugging
+            ax.text(float(-track.x[1].item()), float(track.x[0].item()+1), str(track.id))
            
             if track.state =='initialized':
-                ax.scatter(float(-track.x[1]), float(track.x[0]), color=col, s=80, marker='x', label='initialized track')
+                ax.scatter(float(-track.x[1].item()), float(track.x[0].item()), color=col, s=80, marker='x', label='initialized track')
             elif track.state =='tentative':
-                ax.scatter(float(-track.x[1]), float(track.x[0]), color=col, s=80, marker='x', label='tentative track')
+                ax.scatter(float(-track.x[1].item()), float(track.x[0].item()), color=col, s=80, marker='x', label='tentative track')
             elif track.state =='confirmed':
-                ax.scatter(float(-track.x[1]), float(track.x[0]), color=col, s=80, marker='x', label='confirmed track')
+                ax.scatter(float(-track.x[1].item()), float(track.x[0].item()), color=col, s=80, marker='x', label='confirmed track')
          
             # project tracks in image
             # transform from vehicle to camera coordinates
@@ -139,7 +139,7 @@ def plot_tracks(fig, ax, ax2, track_list, meas_list, lidar_labels, lidar_labels_
             ax.scatter(-1*label.box.center_y, label.box.center_x, color='gray', s=80, marker='+', label='ground truth')
     # plot measurements
     for meas in meas_list:
-        ax.scatter(-1*meas.z[1], meas.z[0], color='blue', marker='.', label='measurement')
+        ax.scatter(-1*meas.z[1].item(), meas.z[0].item(), color='blue', marker='.', label='measurement')
     
     # maximize window        
     mng = plt.get_current_fig_manager()
